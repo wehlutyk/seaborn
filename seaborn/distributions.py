@@ -244,7 +244,7 @@ def boxplot(vals, groupby=None, names=None, join_rm=False, order=None,
 def violinplot(vals, groupby=None, inner="box", color=None, positions=None,
                names=None, order=None, bw="scott", widths=.8, alpha=None,
                join_rm=False, gridsize=100, cut=3, inner_kws=None,
-               ax=None, **kwargs):
+               ax=None, log=False, **kwargs):
 
     """Create a violin plot (a combination of boxplot and kernel density plot).
 
@@ -290,6 +290,8 @@ def violinplot(vals, groupby=None, inner="box", color=None, positions=None,
         Keyword arugments for inner plot.
     ax : matplotlib axis, optional
         Axis to plot on, otherwise grab current axis.
+    log : boolean, optional
+        Whether to plot the log-kde or the normal kde; defaults to normal.
     kwargs : additional parameters to fill_betweenx
 
     Returns
@@ -340,6 +342,16 @@ def violinplot(vals, groupby=None, inner="box", color=None, positions=None,
             bw = getattr(kde, "%s_factor" % bw)()
         y = _kde_support(a, bw, gridsize, cut, (-np.inf, np.inf))
         dens = kde.evaluate(y)
+
+        # Create log-converter and shifter if asked for
+        if log:
+            min_logdens = np.log(dens).min()
+            optlog = lambda x: np.log(x) - min_logdens
+        else:
+            optlog = lambda x: x
+
+        # Finish scaling the density
+        dens = optlog(dens)
         scl = 1 / (dens.max() / (widths / 2))
         dens *= scl
 
@@ -347,15 +359,15 @@ def violinplot(vals, groupby=None, inner="box", color=None, positions=None,
         ax.fill_betweenx(y, x - dens, x + dens, alpha=alpha, color=colors[i])
         if inner == "box":
             for quant in percentiles(a, [25, 75]):
-                q_x = kde.evaluate(quant) * scl
+                q_x = optlog(kde.evaluate(quant)) * scl
                 q_x = [x - q_x, x + q_x]
                 ax.plot(q_x, [quant, quant], linestyle=":",  **inner_kws)
             med = np.median(a)
-            m_x = kde.evaluate(med) * scl
+            m_x = optlog(kde.evaluate(med)) * scl
             m_x = [x - m_x, x + m_x]
             ax.plot(m_x, [med, med], linestyle="--", **inner_kws)
         elif inner == "stick":
-            x_vals = kde.evaluate(a) * scl
+            x_vals = optlog(kde.evaluate(a)) * scl
             x_vals = [x - x_vals, x + x_vals]
             ax.plot(x_vals, [a, a], linestyle="-", **inner_kws)
         elif inner == "points":
